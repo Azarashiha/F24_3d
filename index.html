@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>Add a 3D model with threebox</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* .marker {
+            background-color: rgb(111, 126, 255);
+            border-radius: 50%;
+            width: 10px;
+            height: 10px;
+            border: 2px solid white;
+        } */
+
+        .map-overlay {
+            font: 10px/16px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+            position: absolute;
+            width: 150px;
+            top: 10px;
+            left: 10px;
+            padding: 8px;
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+        }
+
+        .map-overlay-inner fieldset {
+            display: flex;
+            justify-content: space-between;
+            border: none;
+            margin-bottom: 8px;
+        }
+
+        .map-overlay-inner label {
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .map-overlay-inner select,
+        .map-overlay-inner input {
+            width: 100%;
+        }
+
+        /* #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            display: none;
+        } */
+        #clock {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 5px;
+            
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: rgba(255, 255, 255, 1);
+        }
+    </style>
+</head>
+
+<body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.125.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/threebox-plugin@2.2.1/dist/threebox.min.js"></script>
+    
+    <div id="map"></div>
+    <div id="loading">Loading...</div>
+
+    <h1>RJTT Tokyo Control - Live ATC</h1>
+    <audio id="liveATC">
+        <source src="https://s1-fmt2.liveatc.net/rjtt_control" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+
+
+
+    <div id="clock"></div>
+    <div class="map-overlay top">
+        <div class="map-overlay-inner">
+            <fieldset class="select-fieldset">
+                <label>Select light preset</label>
+                <select id="lightPreset" name="lightPreset">
+                    <option value="dawn">Dawn</option>
+                    <option value="day" selected="">Day</option>
+                    <option value="dusk">Dusk</option>
+                    <option value="night">Night</option>
+                    <option value="sample">Sample</option>
+                </select>
+            </fieldset>
+            <fieldset>
+                <label for="showPlaceLabels">Show place labels</label>
+                <input type="checkbox" id="showPlaceLabels" checked="">
+            </fieldset>
+            <fieldset>
+                <label for="showPointOfInterestLabels">Show POI labels</label>
+                <input type="checkbox" id="showPointOfInterestLabels" checked="">
+            </fieldset>
+            <fieldset>
+                <label for="showRoadLabels">Show road labels</label>
+                <input type="checkbox" id="showRoadLabels" checked="">
+            </fieldset>
+            <fieldset>
+                <label for="showTransitLabels">Show transit labels</label>
+                <input type="checkbox" id="showTransitLabels" checked="">
+            </fieldset>
+            <fieldset>
+                <p>Tokyo Control - 管制音声</p>
+        <button id="toggleButton">▶</button>
+            </fieldset>
+        </div>
+    </div>
+    <script>
+        function updateClock() {
+            const clock = document.getElementById('clock');
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            const seconds = now.getSeconds().toString().padStart(2, '0');
+            clock.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+
+        setInterval(updateClock, 1000);
+        updateClock(); // 初回実行
+    </script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var audio = document.getElementById('liveATC');
+        var toggleButton = document.getElementById('toggleButton');
+
+        toggleButton.addEventListener('click', function() {
+            if (audio.paused) {
+                audio.play().catch(function(error) {
+                    console.log('再生がブロックされました:', error);
+                    // Handle play prevention
+                });
+                toggleButton.textContent = '■';
+            } else {
+                audio.pause();
+                toggleButton.textContent = '▶';
+            }
+        });
+    });
+</script>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiYXphcmFzaGluayIsImEiOiJjbHNlN29jZzIxNTg1MmlxbGlyMTA0dzh3In0.paWtIhuJ3n4NrWyvuuhGyw';
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/standard',
+            center: [139.79317871866255,35.558443753040265], // 羽田空港の座標
+            zoom: 13.5, // 初期ズームレベルを10に設定
+            pitch: 70,
+            bearing: 120,
+            antialias: true
+        });
+
+        let flightData = [];
+
+        map.on('load', () => {
+            window.tb = new Threebox(
+                map,
+                map.getCanvas().getContext('webgl'),
+                {
+                    defaultLights: true,
+                    enableShadows: true
+                }
+            );
+
+            map.addLayer({
+                id: 'custom-threebox-model',
+                type: 'custom',
+                renderingMode: '3d',
+                onAdd: function () {
+                    const models = new Map(); // モデルを保持するマップを作成
+                    const markers = []; // マーカーを保持する配列を作成
+
+                    async function loadFlightData() {
+                        document.getElementById('loading').style.display = 'block';
+                        try {
+                            const response = await fetch('flight_data.json');
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok');
+                            }
+                            const data = await response.json();
+                            flightData = data;
+
+                            // 既存のモデルとマーカーを削除
+                            models.forEach((model, id) => {
+                                window.tb.remove(model);
+                            });
+                            models.clear();
+
+                            markers.forEach((marker) => {
+                                marker.remove();
+                            });
+                            markers.length = 0;
+
+                            for (const flight of data) {
+                                // マーカーを作成
+                                const el = document.createElement('div');
+                                el.className = 'marker';
+                                el.dataset.id = flight.id; // マーカーにIDを設定
+
+                                const marker = new mapboxgl.Marker(el)
+                                    .setLngLat([flight.lng, flight.lat])
+                                    .addTo(map);
+
+                                markers.push(marker);
+
+                                // 3Dモデルのオプションを設定
+                                const scale = 50;
+                                const options = {
+                                    obj: 'data/plane.glb', // モデルファイルのパスを確認
+                                    type: 'gltf',
+                                    scale: { x: scale, y: scale, z: scale },
+                                    units: 'meters',
+                                    rotation: { x: 90, y: 0, z: 360 } // 初期回転設定
+                                };
+
+                                console.log(flight.direction - 180);
+
+                                window.tb.loadObj(options, (model) => {
+                                    if (model) {
+                                        model.castShadow = true;
+                                        model.receiveShadow = true;
+                                        model.setCoords([flight.lng, flight.lat, flight.altitude]);
+                                        model.rotation.z = Math.abs(flight.direction - 360);
+                                        model.userData = { marker, id: flight.id }; // マーカーとIDをモデルに紐付け
+                                        window.tb.add(model);
+                                        models.set(flight.id, model); // モデルをマップに追加
+                                    } else {
+                                        console.error('Could not load model:', options.obj);
+                                    }
+                                }).catch(err => {
+                                    console.error('Error loading model:', err);
+                                });
+                            }
+
+                            // Mapbox SymbolLayerを使用してラベルを追加
+                            updateLabels();
+
+                        } catch (error) {
+                            console.error('Error loading flight data:', error);
+                        } finally {
+                            document.getElementById('loading').style.display = 'none';
+                        }
+                    }
+
+                    function updateLabels() {
+                        const labelSource = map.getSource('flight-labels');
+                        if (labelSource) {
+                            labelSource.setData({
+                                type: 'FeatureCollection',
+                                features: flightData.map(flight => ({
+                                    type: 'Feature',
+                                    properties: {
+                                        id: flight.callsign
+                                    },
+                                    geometry: {
+                                        type: 'Point',
+                                        coordinates: [flight.lng, flight.lat]
+                                    }
+                                }))
+                            });
+                        } else {
+                            map.addSource('flight-labels', {
+                                type: 'geojson',
+                                data: {
+                                    type: 'FeatureCollection',
+                                    features: flightData.map(flight => ({
+                                        type: 'Feature',
+                                        properties: {
+                                            id: flight.callsign
+                                        },
+                                        geometry: {
+                                            type: 'Point',
+                                            coordinates: [flight.lng, flight.lat]
+                                        }
+                                    }))
+                                }
+                            });
+
+                            map.addLayer({
+                                id: 'flight-labels-layer',
+                                type: 'symbol',
+                                source: 'flight-labels',
+                                layout: {
+                                    'text-field': ['get', 'id'],
+                                    'text-size': 10,
+                                    'text-anchor': 'top'
+                                },
+                                paint: {
+                                    'text-color': "black",
+                                    "text-halo-color": "white",
+                                    "text-halo-width": 3,
+                                }
+                            });
+                        }
+                    }
+
+                    loadFlightData();
+                    setInterval(loadFlightData, 800); // 10秒ごとにデータを更新
+
+                    map.on('zoom', () => {
+                        const zoomLevel = map.getZoom();
+                        models.forEach((model, id) => {
+                            model.visible = zoomLevel >= 8;
+                        });
+                        markers.forEach(marker => {
+                            marker.getElement().style.display = zoomLevel >= 8 ? 'block' : 'none';
+                        });
+
+                        // ズームレベルに基づいてラベルの表示/非表示を設定
+                        const visibility = zoomLevel >= 8 ? 'visible' : 'none';
+                        map.setLayoutProperty('flight-labels-layer', 'visibility', visibility);
+
+                        window.tb.update();
+                    });
+
+                    document.getElementById('lightPreset').addEventListener('change', function () {
+                        const value = this.value;
+                        if (value === 'sample') {
+                            map.setConfigProperty('basemap', 'lightPreset', 'dawn');
+                        } else {
+                            map.setConfigProperty('basemap', 'lightPreset', value);
+                        }
+                    });
+
+                    document.querySelectorAll('.map-overlay-inner input[type="checkbox"]').forEach((checkbox) => {
+                        checkbox.addEventListener('change', function () {
+                            map.setConfigProperty('basemap', this.id, this.checked);
+                        });
+                    });
+                },
+                render: function () {
+                    window.tb.update();
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>
